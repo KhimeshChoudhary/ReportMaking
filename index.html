@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Vulnerability Report Generator</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 20px; }
+    .container { max-width: 1000px; margin: 0 auto; }
+    .btn { padding: 10px 15px; background-color: #4CAF50; color: white; border: none; cursor: pointer; margin-top: 10px; }
+    .btn:hover { background-color: #45a049; }
+    table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+    table, th, td { border: 1px solid #ddd; }
+    th, td { padding: 10px; text-align: left; }
+    .image-container { display: flex; align-items: center; gap: 10px; margin-top: 10px; }
+    .image-container img { width: 100px; height: 100px; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Vulnerability Report Generator</h1>
+    <input type="file" id="fileInput" class="btn" />
+    <button class="btn" onclick="handleFileUpload()">Load Excel Data</button>
+    <h2>Vulnerabilities</h2>
+    <table id="vulnerabilityTable">
+      <thead>
+        <tr>
+          <th>Select</th>
+          <th>Title</th>
+          <th>Affected Assets</th>
+          <th>Description</th>
+          <th>Impact</th>
+          <th>Recommendations</th>
+          <th>Reference</th>
+          <th>CVE/CWE</th>
+          <th>Status</th>
+          <th>Proof of Concept</th>
+        </tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+    <button class="btn" onclick="generateReport()">Generate Report</button>
+  </div>
+  
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.17.0/xlsx.full.min.js"></script>
+  <script>
+    let vulnerabilities = [];
+    let selectedVulnerabilities = [];
+
+    function handleFileUpload() {
+      const file = document.getElementById('fileInput').files[0];
+      const reader = new FileReader();
+      reader.onload = function (e) {
+        const data = new Uint8Array(e.target.result);
+        const workbook = XLSX.read(data, { type: 'array' });
+        vulnerabilities = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]]);
+        displayVulnerabilities();
+      };
+      reader.readAsArrayBuffer(file);
+    }
+
+    function displayVulnerabilities() {
+      const tableBody = document.querySelector('#vulnerabilityTable tbody');
+      tableBody.innerHTML = '';
+      vulnerabilities.forEach((vul, index) => {
+        const row = document.createElement('tr');
+        row.innerHTML = `
+          <td><input type="checkbox" onchange="toggleVulnerability(${index}, this.checked)" /></td>
+          <td>${vul.Title || ''}</td>
+          <td>${vul.Affected_Assets || ''}</td>
+          <td>${vul.Description || ''}</td>
+          <td>${vul.Impact || ''}</td>
+          <td>${vul.Recommendations || ''}</td>
+          <td>${vul.Reference || ''}</td>
+          <td>${vul.CVE_CWE || ''}</td>
+          <td>${vul.Status || ''}</td>
+          <td>
+            <input type="file" multiple onchange="uploadImages(${index}, this.files)" />
+            <div id="image-list-${index}"></div>
+          </td>
+        `;
+        tableBody.appendChild(row);
+      });
+    }
+
+    function toggleVulnerability(index, isChecked) {
+      const vul = vulnerabilities[index];
+      if (isChecked) {
+        if (!selectedVulnerabilities.includes(vul)) {
+          selectedVulnerabilities.push(vul);
+        }
+      } else {
+        selectedVulnerabilities = selectedVulnerabilities.filter(v => v !== vul);
+      }
+    }
+
+    function uploadImages(index, files) {
+      vulnerabilities[index].PoC = vulnerabilities[index].PoC || { images: [], steps: [], sizes: [] };
+      const imageList = document.getElementById(`image-list-${index}`);
+      imageList.innerHTML = '';
+
+      Array.from(files).forEach((file, fileIndex) => {
+        const reader = new FileReader();
+        reader.onload = () => {
+          vulnerabilities[index].PoC.images.push(reader.result.split(',')[1]);
+          vulnerabilities[index].PoC.steps.push("");
+          vulnerabilities[index].PoC.sizes.push({ width: '', height: '' });
+
+          updateImageList(index);
+        };
+        reader.readAsDataURL(file);
+      });
+    }
+
+
+    function updateImageList(index) {
+    const imageList = document.getElementById(`image-list-${index}`);
+    imageList.innerHTML = '';
+
+    vulnerabilities[index].PoC.images.forEach((imgData, fileIndex) => {
+        const div = document.createElement('div');
+        div.className = 'image-container';
+        div.innerHTML = `
+            <img src="data:image/png;base64,${imgData}">
+            <input type="text" placeholder="Step description" oninput="updateStep(${index}, ${fileIndex}, this.value)" value="${vulnerabilities[index].PoC.steps[fileIndex] || ''}">
+            <input type="number" placeholder="Width (cm)" oninput="updateSize(${index}, ${fileIndex}, 'width', this.value)">
+            <input type="number" placeholder="Height (cm)" oninput="updateSize(${index}, ${fileIndex}, 'height', this.value)">
+            <label>
+                <input type="checkbox" onchange="updateNewPageOption(${index}, ${fileIndex}, this.checked)"> Insert on new page
+            </label>
+            <button onclick="moveImage(${index}, ${fileIndex}, -1)">⬆</button>
+            <button onclick="moveImage(${index}, ${fileIndex}, 1)">⬇</button>
+            <button onclick="deleteImage(${index}, ${fileIndex})">❌</button>
+        `;
+        imageList.appendChild(div);
+    });
+}
+
+function updateNewPageOption(index, fileIndex, value) {
+    vulnerabilities[index].PoC.new_page_option = value;
+}
+
+
+    function moveImage(index, fileIndex, direction) {
+      const images = vulnerabilities[index].PoC.images;
+      const steps = vulnerabilities[index].PoC.steps;
+      const sizes = vulnerabilities[index].PoC.sizes;
+
+      const newIndex = fileIndex + direction;
+      if (newIndex < 0 || newIndex >= images.length) return;
+
+      [images[fileIndex], images[newIndex]] = [images[newIndex], images[fileIndex]];
+      [steps[fileIndex], steps[newIndex]] = [steps[newIndex], steps[fileIndex]];
+      [sizes[fileIndex], sizes[newIndex]] = [sizes[newIndex], sizes[fileIndex]];
+
+      updateImageList(index);
+    }
+
+    function deleteImage(index, fileIndex) {
+      vulnerabilities[index].PoC.images.splice(fileIndex, 1);
+      vulnerabilities[index].PoC.steps.splice(fileIndex, 1);
+      vulnerabilities[index].PoC.sizes.splice(fileIndex, 1);
+
+      updateImageList(index);
+    }
+
+    function updateStep(index, fileIndex, value) {
+      vulnerabilities[index].PoC.steps[fileIndex] = value;
+    }
+
+    function updateSize(index, fileIndex, field, value) {
+      vulnerabilities[index].PoC.sizes[fileIndex][field] = value;
+    }
+
+    function generateReport() {
+      fetch('http://127.0.0.1:5000/generate-report', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ data: selectedVulnerabilities }),
+      }).then(response => response.blob()).then(blob => {
+        const link = document.createElement('a');
+        link.href = URL.createObjectURL(blob);
+        link.download = 'vulnerability_report.docx';
+        link.click();
+      });
+    }
+  </script>
+</body>
+</html>
