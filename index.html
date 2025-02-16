@@ -173,7 +173,7 @@ function updateNewPageOption(index, fileIndex, value) {
     }
 
     function generateReport() {
-      fetch('http://127.0.0.1:5000/generate-report', {
+      fetch('https://khimeshreport.pythonanywhere.com/generate-report', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ data: selectedVulnerabilities }),
