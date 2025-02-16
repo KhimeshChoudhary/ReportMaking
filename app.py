@@ -8,10 +8,7 @@ import os
 app = Flask(__name__)
 CORS(app)
 
-# Serve the homepage (index.html)
-@app.route('/')
-def home():
-    return render_template('templates\index.html')
+
 
 # Function to add a heading label (for a field name)
 def set_heading_style(paragraph, label):
@@ -125,7 +122,7 @@ def generate_report():
         document.add_page_break()  # Ensure each vulnerability starts on a new page
 
     # Save the document
-    report_path = "vulnerability_report.docx"
+    report_path = "/home/khimeshreport/mysite/vulnerability_report.docx"
     document.save(report_path)
 
     return send_file(report_path, as_attachment=True)
